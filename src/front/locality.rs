@@ -266,12 +266,12 @@ mod tests {
         let port = listener.local_addr().unwrap().port();
         drop(listener);
         let url = Url::parse(&format!("http://127.0.0.1:{port}/")).unwrap();
-        let p = probe(&url, Duration::from_secs(2)).await;
+        let p = probe(&url, Duration::from_secs(5)).await;
         assert!(!p.reachable);
         assert!(
             matches!(
                 p.error.as_deref(),
-                Some("connection refused") | Some(PERMISSION_DENIED_MSG)
+                Some("connection refused") | Some("timed out") | Some(PERMISSION_DENIED_MSG)
             ),
             "unexpected unreachable probe error: {:?}",
             p.error

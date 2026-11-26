@@ -1817,9 +1817,16 @@ protected = false
         assert_eq!(absolute_codebase_warning("."), None);
         assert_eq!(absolute_codebase_warning(".."), None);
         assert_eq!(absolute_codebase_warning("web"), None);
-        let abs_warn = absolute_codebase_warning("/tmp/example-repo").expect("warning expected");
+        let abs_example = if cfg!(windows) {
+            r"C:\tmp\example-repo"
+        } else {
+            "/tmp/example-repo"
+        };
+        let abs_warn = absolute_codebase_warning(abs_example).expect("warning expected");
         assert!(
-            abs_warn.contains("config.toml records an absolute codebase path (/tmp/example-repo)"),
+            abs_warn.contains(&format!(
+                "config.toml records an absolute codebase path ({abs_example})"
+            )),
             "{abs_warn}"
         );
 

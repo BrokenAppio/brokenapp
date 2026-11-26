@@ -483,14 +483,14 @@ mod tests {
     fn dev_env_resolves_references() {
         let mut env = BTreeMap::new();
         env.insert("PORT".to_string(), "3100".to_string());
-        env.insert("HOME_COPY".to_string(), "env:HOME".to_string());
+        env.insert("PATH_COPY".to_string(), "env:PATH".to_string());
         env.insert(
             "MISSING".to_string(),
             "env:BROKENAPP_TEST_SURELY_UNSET_VAR".to_string(),
         );
         let (vars, warnings) = resolve_dev_env(&env);
         assert!(vars.contains(&("PORT".to_string(), "3100".to_string())));
-        assert!(vars.iter().any(|(k, _)| k == "HOME_COPY"));
+        assert!(vars.iter().any(|(k, _)| k == "PATH_COPY"));
         assert!(!vars.iter().any(|(k, _)| k == "MISSING"));
         assert_eq!(warnings.len(), 1);
         assert!(warnings[0].contains("BROKENAPP_TEST_SURELY_UNSET_VAR"));
@@ -585,10 +585,14 @@ mod tests {
         let msg = sup.watch().await.expect("restart reported");
         assert!(msg.contains("restarted"), "{msg}");
         assert_eq!(sup.restarts(), 1);
+        let mut last_probe = locality::probe(&url, Duration::from_secs(5)).await;
+        if !last_probe.reachable {
+            tokio::time::sleep(Duration::from_millis(250)).await;
+            last_probe = locality::probe(&url, Duration::from_secs(10)).await;
+        }
         assert!(
-            locality::probe(&url, Duration::from_secs(5))
-                .await
-                .reachable
+            last_probe.reachable,
+            "restarted server not reachable: {last_probe:?}"
         );
         let raw = std::fs::read_to_string(&log).unwrap();
         assert!(

@@ -308,8 +308,8 @@ fn last_map(ctx: &ProjectCtx, role: &str) -> Option<String> {
 
 fn rel(path: &Path, base: &Path) -> String {
     path.strip_prefix(base)
-        .map(|p| p.display().to_string())
-        .unwrap_or_else(|_| path.display().to_string())
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_else(|_| path.to_string_lossy().replace('\\', "/"))
 }
 
 fn sources_text(sources: &[SecretSource]) -> String {

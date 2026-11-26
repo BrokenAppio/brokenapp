@@ -1501,7 +1501,7 @@ fn path_rel(root: &Path, path: &Path) -> String {
         .strip_prefix(&root_norm)
         .unwrap_or(path)
         .to_string_lossy()
-        .to_string()
+        .replace('\\', "/")
 }
 
 #[cfg(test)]

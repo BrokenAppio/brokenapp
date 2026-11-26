@@ -1674,7 +1674,13 @@ fn remove_existing_pointer_path(path: &Path) -> io::Result<()> {
             if file_type.is_dir() && !file_type.is_symlink() {
                 std::fs::remove_dir_all(path)
             } else {
-                std::fs::remove_file(path)
+                match std::fs::remove_file(path) {
+                    Ok(()) => Ok(()),
+                    #[cfg(windows)]
+                    Err(_) => std::fs::remove_dir(path),
+                    #[cfg(not(windows))]
+                    Err(err) => Err(err),
+                }
             }
         }
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),

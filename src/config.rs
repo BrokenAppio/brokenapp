@@ -1368,8 +1368,12 @@ mod tests {
         let dir = tmp.path().join("scans/run1");
         std::fs::create_dir_all(&dir).unwrap();
         let config = dir.join("scan.toml");
-        std::fs::write(
-            &config,
+        let abs_coach = if cfg!(windows) {
+            r"C:\abs\coach.json"
+        } else {
+            "/abs/coach.json"
+        };
+        let toml_body = format!(
             r#"
 [target]
 url = "http://127.0.0.1:47280/"
@@ -1381,7 +1385,7 @@ path = "../../session/admin.json"
 [[auth_paths]]
 name = "coach"
 type = "storage_state"
-path = "/abs/coach.json"
+path = '{}'
 
 [[auth_paths]]
 name = "user"
@@ -1394,24 +1398,26 @@ max_views = 0
 view_budget_seconds = 300
 stop_on_convergence = false
 "#,
-        )
-        .unwrap();
+            abs_coach
+        );
+        std::fs::write(&config, toml_body).unwrap();
         let cfg = BrokenAppConfig::from_toml_path(&config).unwrap();
         let Some(AuthConfig::StorageState { path }) = cfg.auth.as_ref() else {
             panic!("storage_state auth: {:?}", cfg.auth);
         };
         assert!(Path::new(path).is_absolute(), "{path}");
+        let norm_path = path.replace('\\', "/");
         assert!(
-            path.ends_with("scans/run1/../../session/admin.json"),
+            norm_path.ends_with("scans/run1/../../session/admin.json"),
             "{path}"
         );
         assert!(matches!(
             &cfg.auth_paths[0].auth,
-            AuthConfig::StorageState { path } if path == "/abs/coach.json"
+            AuthConfig::StorageState { path } if path == abs_coach
         ));
         assert!(matches!(
             &cfg.auth_paths[1].auth,
-            AuthConfig::StorageState { path } if path.ends_with("scans/run1/user.json")
+            AuthConfig::StorageState { path } if path.replace('\\', "/").ends_with("scans/run1/user.json")
         ));
         assert_eq!(cfg.scan.view_budget_seconds, 300);
         assert_eq!(cfg.scan.max_duration_minutes, 0);

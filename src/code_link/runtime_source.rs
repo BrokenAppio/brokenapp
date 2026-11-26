@@ -358,6 +358,15 @@ pub(crate) struct CodebaseRoot {
     roots: Vec<PathBuf>,
 }
 
+fn strip_windows_verbatim(path: &Path) -> PathBuf {
+    let raw = path.to_string_lossy();
+    if let Some(stripped) = raw.strip_prefix(r"\\?\") {
+        PathBuf::from(stripped)
+    } else {
+        path.to_path_buf()
+    }
+}
+
 impl CodebaseRoot {
     pub(crate) fn new(codebase: &Path) -> Self {
         let given = if codebase.is_absolute() {
@@ -367,11 +376,18 @@ impl CodebaseRoot {
                 .map(|cwd| cwd.join(codebase))
                 .unwrap_or_else(|_| codebase.to_path_buf())
         };
-        let mut roots = vec![given.clone()];
-        if let Ok(canonical) = std::fs::canonicalize(&given)
-            && canonical != given
-        {
-            roots.push(canonical);
+        let mut roots = vec![strip_windows_verbatim(&given)];
+        if !roots.contains(&given) {
+            roots.push(given.clone());
+        }
+        if let Ok(canonical) = std::fs::canonicalize(&given) {
+            let plain = strip_windows_verbatim(&canonical);
+            if !roots.contains(&plain) {
+                roots.push(plain);
+            }
+            if !roots.contains(&canonical) {
+                roots.push(canonical);
+            }
         }
         Self { roots }
     }
@@ -382,15 +398,22 @@ impl CodebaseRoot {
 
     /// Repo-relative `/`-separated path for an absolute path inside the codebase.
     pub(crate) fn relativize(&self, abs: &Path) -> Option<String> {
+        let norm = strip_windows_verbatim(abs);
         self.roots.iter().find_map(|root| {
-            let rel = abs.strip_prefix(root).ok()?;
+            let rel = abs
+                .strip_prefix(root)
+                .or_else(|_| norm.strip_prefix(root))
+                .ok()?;
             let rel = rel.to_string_lossy().replace('\\', "/");
             (!rel.is_empty()).then_some(rel)
         })
     }
 
     fn contains(&self, abs: &Path) -> bool {
-        self.roots.iter().any(|root| abs.starts_with(root))
+        let norm = strip_windows_verbatim(abs);
+        self.roots
+            .iter()
+            .any(|root| abs.starts_with(root) || norm.starts_with(root))
     }
 
     fn is_file(&self, rel: &str) -> bool {
@@ -453,13 +476,17 @@ fn classify_source(source: &str, base: Option<&Url>, root: &CodebaseRoot) -> Sou
             Err(_) => SourceClass::Unknown,
         };
     }
-    if source.starts_with('/') {
-        let path = Path::new(strip_query(source));
-        if root.contains(path) {
-            return classify_abs_path(path, root);
+    let stripped = strip_query(source);
+    let candidate_path = Path::new(stripped);
+    if candidate_path.is_absolute() || stripped.starts_with('/') {
+        if root.contains(candidate_path) {
+            return classify_abs_path(candidate_path, root);
         }
-        // Root-relative URL path (Vite: `/src/App.tsx`, `/@fs/abs/path`).
-        return classify_served_path(strip_query(source), root);
+        if stripped.starts_with('/') {
+            // Root-relative URL path (Vite: `/src/App.tsx`, `/@fs/abs/path`).
+            return classify_served_path(stripped, root);
+        }
+        return classify_abs_path(candidate_path, root);
     }
     // Relative source: resolve against the map/script URL when we have one.
     if let Some(base) = base
@@ -503,6 +530,13 @@ fn classify_url_path(url: &Url, root: &CodebaseRoot) -> SourceClass {
 /// A dev-server URL path (`/src/pages/Cart.tsx`, `/@fs/abs/x.tsx`).
 fn classify_served_path(path: &str, root: &CodebaseRoot) -> SourceClass {
     if let Some(abs) = path.strip_prefix("/@fs") {
+        let abs = abs
+            .strip_prefix('/')
+            .filter(|rest| {
+                let bytes = rest.as_bytes();
+                bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
+            })
+            .unwrap_or(abs);
         return classify_abs_path(Path::new(abs), root);
     }
     if path.split('/').any(|seg| seg == "node_modules") {
@@ -1351,7 +1385,13 @@ mod tests {
     }
 
     fn canonical(dir: &tempfile::TempDir) -> PathBuf {
-        fs::canonicalize(dir.path()).unwrap()
+        strip_windows_verbatim(&fs::canonicalize(dir.path()).unwrap())
+    }
+
+    fn file_url(base: &Path, rel: &str) -> String {
+        Url::from_file_path(strip_windows_verbatim(base).join(rel))
+            .unwrap()
+            .to_string()
     }
 
     #[test]
@@ -1377,16 +1417,24 @@ mod tests {
 
     #[test]
     fn classifies_frame_targets() {
-        match classify_frame_url(
-            "about://React/Server/file:///private/tmp/app/.next/dev/server/chunks/ssr/%5Broot-of-the-server%5D__x._.js?3",
-        ) {
+        let (sample_url, expected_path) = if cfg!(windows) {
+            (
+                "about://React/Server/file:///C:/tmp/app/.next/dev/server/chunks/ssr/%5Broot-of-the-server%5D__x._.js?3",
+                PathBuf::from(
+                    r"C:\tmp\app\.next\dev\server\chunks\ssr\[root-of-the-server]__x._.js",
+                ),
+            )
+        } else {
+            (
+                "about://React/Server/file:///private/tmp/app/.next/dev/server/chunks/ssr/%5Broot-of-the-server%5D__x._.js?3",
+                PathBuf::from(
+                    "/private/tmp/app/.next/dev/server/chunks/ssr/[root-of-the-server]__x._.js",
+                ),
+            )
+        };
+        match classify_frame_url(sample_url) {
             FrameTarget::File { path, env } => {
-                assert_eq!(
-                    path,
-                    PathBuf::from(
-                        "/private/tmp/app/.next/dev/server/chunks/ssr/[root-of-the-server]__x._.js"
-                    )
-                );
+                assert_eq!(path, expected_path);
                 assert_eq!(env.as_deref(), Some("Server"));
                 assert!(is_build_path(&path));
             }
@@ -1429,6 +1477,12 @@ mod tests {
             "components/ui/button.tsx",
         ]);
         let abs = canonical(&dir);
+        let fs_prefix = abs.to_string_lossy().replace('\\', "/");
+        let fs_url = if fs_prefix.starts_with('/') {
+            format!("/@fs{fs_prefix}/app/page.tsx")
+        } else {
+            format!("/@fs/{fs_prefix}/app/page.tsx")
+        };
         let cases: Vec<(String, Option<Url>, SourceClass)> = vec![
             (
                 "webpack://_N_E/./app/page.tsx".into(),
@@ -1441,12 +1495,12 @@ mod tests {
                 SourceClass::App("components/ui/button.tsx".into()),
             ),
             (
-                format!("file://{}/app/page.tsx", abs.display()),
+                file_url(&abs, "app/page.tsx"),
                 None,
                 SourceClass::App("app/page.tsx".into()),
             ),
             (
-                format!("{}/src/pages/Cart.tsx", dir.path().display()),
+                dir.path().join("src/pages/Cart.tsx").display().to_string(),
                 None,
                 SourceClass::App("src/pages/Cart.tsx".into()),
             ),
@@ -1462,16 +1516,9 @@ mod tests {
                 None,
                 SourceClass::App("app/page.tsx".into()),
             ),
+            (fs_url, None, SourceClass::App("app/page.tsx".into())),
             (
-                format!("/@fs{}/app/page.tsx", abs.display()),
-                None,
-                SourceClass::App("app/page.tsx".into()),
-            ),
-            (
-                format!(
-                    "file://{}/node_modules/next/dist/client/link.js",
-                    abs.display()
-                ),
+                file_url(&abs, "node_modules/next/dist/client/link.js"),
                 None,
                 SourceClass::Library,
             ),
@@ -1843,7 +1890,7 @@ mod tests {
                 "offset": {"line": 10, "column": 0},
                 "map": {
                     "version": 3,
-                    "sources": [format!("file://{}/components/checkout-button.tsx", abs.display())],
+                    "sources": [file_url(&abs, "components/checkout-button.tsx")],
                     "mappings": encode(&[vec![], vec![], vec![], vec![], vec![(200, 0, 5, 4)]]),
                 }
             }]
@@ -1866,8 +1913,11 @@ mod tests {
 
         let base = server.uri();
         let server_chunk = format!(
-            "about://React/Server/file://{}/.next/dev/server/chunks/ssr/%5Broot-of-the-server%5D__x._.js?4",
-            abs.display()
+            "about://React/Server/{}?4",
+            file_url(
+                &abs,
+                ".next/dev/server/chunks/ssr/[root-of-the-server]__x._.js"
+            )
         );
         let queries = vec![
             SourceQuery {
@@ -2001,16 +2051,11 @@ mod tests {
                     frames: vec![
                         frame(
                             "render",
-                            &format!("file://{}/src/components/ui/Button.tsx", abs.display()),
+                            &file_url(&abs, "src/components/ui/Button.tsx"),
                             12,
                             5,
                         ),
-                        frame(
-                            "owner",
-                            &format!("file://{}/src/pages/Checkout.tsx", abs.display()),
-                            28,
-                            9,
-                        ),
+                        frame("owner", &file_url(&abs, "src/pages/Checkout.tsx"), 28, 9),
                     ],
                     handlers: vec!["onClick".into()],
                     annotated: None,
