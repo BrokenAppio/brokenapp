@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Load overlay ownership fixture</title>
+<style>body{font:16px system-ui;padding:24px}section{border:1px solid #777;padding:16px;margin:12px}button,input{margin:8px;padding:8px}</style>
+<main id="app"></main>
+<script>
+window.counts = { cookie: 0, accepted: 0, welcome: 0, order: 0, escape: 0, generic: 0, hidden: 0 };
+const app = document.querySelector('#app');
+function destination() {
+  app.innerHTML = '<h1>Destination</h1><button id="destination-details">Destination details</button><div id="detail"></div>';
+  document.querySelector('#destination-details').onclick = () => {
+    document.querySelector('#detail').innerHTML = '<label>Destination note <input id="destination-note"></label>';
+  };
+}
+if (location.pathname === '/redirect-cookie') {
+  app.innerHTML = '<section id="cookie-banner"><p>Cookie consent</p><button type="button" aria-label="Accept cookies">Accept cookies</button></section>';
+  document.querySelector('#cookie-banner button').onclick = () => {
+    history.pushState({}, '', '/destination');
+    destination();
+  };
+} else if (location.pathname === '/destination') {
+  destination();
+} else {
+  app.innerHTML = `
+    <h1>Orders</h1>
+    <section id="order-sheet" role="dialog" aria-label="Order details" aria-modal="true">
+      <h2>Order details</h2><label>Order reference <input id="order-reference"></label>
+      <button type="button" aria-label="Close order" data-testid="close-order" mat-dialog-close>Close order</button>
+    </section>
+    <button type="button" aria-label="Close" id="generic-close">Close unrelated panel</button>
+    <section id="cookie-banner" class="cc-window"><div class="cookie-consent"><p>Cookie consent</p><button class="cc-dismiss" type="button" aria-label="Dismiss cookies">Dismiss cookies</button><button type="button" id="also-accept" aria-label="Accept cookies">Accept cookies</button></div></section>
+    <section id="welcome-banner" role="dialog" aria-label="Welcome banner"><p>Welcome</p><button type="button" mat-dialog-close aria-label="Close Welcome Banner">Close welcome</button></section>
+    <section class="cookie-consent" hidden><button type="button" aria-label="Accept cookies" id="hidden-cookie">Hidden consent</button></section>`;
+  document.querySelector('#order-sheet button').onclick = () => {
+    counts.order++;
+    history.pushState({}, '', '/orders');
+    document.querySelector('#order-sheet').remove();
+  };
+  document.querySelector('#generic-close').onclick = () => counts.generic++;
+  document.querySelector('#cookie-banner button').onclick = () => { counts.cookie++; setTimeout(() => document.querySelector('#cookie-banner')?.remove(), 20); };
+  document.querySelector('#also-accept').onclick = () => counts.accepted++;
+  document.querySelector('#welcome-banner button').onclick = () => { counts.welcome++; document.querySelector('#welcome-banner').remove(); };
+  document.querySelector('#hidden-cookie').onclick = () => counts.hidden++;
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') { counts.escape++; document.querySelector('#order-sheet')?.remove(); history.pushState({}, '', '/orders'); }
+  });
+}
+</script>
+</html>

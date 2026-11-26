@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Write Guard Fixture: more actions</title>
+  </head>
+  <body>
+    <!-- Second half of the write-guard fixture; see index.html. -->
+    <nav><a href="/">Shop</a></nav>
+    <main>
+      <h1>More actions</h1>
+      <p id="status">Ready</p>
+      <button id="upgrade" type="button">Upgrade plan</button>
+      <button id="mark-read" type="button">Mark all read</button>
+      <button id="quick-join" type="button">Quick join</button>
+      <button id="open-receipt" type="button">Open receipt</button>
+      <form id="newsletter" method="post" action="/api/subscribe">
+        <input name="email" type="email" value="fixture@example.test" />
+        <button id="join" type="submit">Join list</button>
+      </form>
+      <form id="receipt" method="post" action="/api/receipt" target="_blank">
+        <input name="order" type="hidden" value="42" />
+      </form>
+    </main>
+    <script>
+      const status = (text) => {
+        document.getElementById("status").textContent = text;
+      };
+      document.getElementById("upgrade").addEventListener("click", () => {
+        navigator.sendBeacon("/api/beacon", "plan=pro");
+        status("upgrade queued");
+      });
+      // Native confirm(): accepted while guarded, then the write is blocked.
+      document.getElementById("mark-read").addEventListener("click", () => {
+        if (confirm("Mark everything as read?")) {
+          fetch("/api/mark-read", { method: "POST" }).then(
+            () => status("mark-read done"),
+            () => status("mark-read failed"),
+          );
+        }
+      });
+      // Native document form POST (navigation), triggered without a submit button.
+      document.getElementById("quick-join").addEventListener("click", () => {
+        document.getElementById("newsletter").submit();
+      });
+      // Native form POST aimed at a new window (would escape a per-page guard).
+      document.getElementById("open-receipt").addEventListener("click", () => {
+        document.getElementById("receipt").submit();
+      });
+    </script>
+  </body>
+</html>

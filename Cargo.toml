@@ -1,0 +1,55 @@
+[package]
+name = "brokenapp"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "A map of what your web app actually does — per login role, traced to source, with a write guard on by default."
+license = "MIT"
+homepage = "https://brokenapp.io"
+repository = "https://github.com/BrokenAppio/brokenapp"
+readme = "README.md"
+keywords = ["ui", "cdp", "rbac", "testing", "cli"]
+categories = ["command-line-utilities", "development-tools::testing", "web-programming"]
+
+[dependencies]
+aho-corasick = "1"
+anyhow = "1"
+base64 = "0.22"
+blake3 = "1"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive", "env"] }
+csv = "1"
+dashmap = "6"
+dialoguer = "0.11"
+dirs = "5"
+futures = "0.3"
+memchr = "2"
+regex = "1"
+reqwest = { version = "0.12", features = ["json", "cookies"] }
+ring = "0.17"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+serde_yaml = "0.9"
+shell-words = "1"
+tempfile = "3"
+tokio = { version = "1", features = ["full"] }
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+url = { version = "2", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Browser automation via CDP
+chromiumoxide = { version = "0.8", features = ["tokio-runtime"], default-features = true }
+
+[dev-dependencies]
+wiremock = "0.6"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+
+[build-dependencies]
+chrono = "0.4"

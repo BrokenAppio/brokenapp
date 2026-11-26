@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Setup</title></head>
+<body>
+  <main id="wizard"></main>
+  <script>
+    (function () {
+      const root = document.getElementById('wizard');
+      let tip = false;
+      function step1() {
+        root.innerHTML =
+          '<h2>Welcome</h2>' +
+          '<p><button id="begin">Begin setup</button></p>' +
+          '<p><button id="tip">Show tip</button></p>' +
+          '<div id="tip-out"></div>';
+        document.getElementById('begin').addEventListener('click', step2);
+        document.getElementById('tip').addEventListener('click', function () {
+          document.getElementById('tip-out').textContent = 'Tip: you can come back later.';
+        });
+      }
+      function step2() {
+        root.innerHTML =
+          '<h2>Choose sources</h2>' +
+          '<form id="sources" onsubmit="return false">' +
+          '<label><input type="checkbox" id="agree"> I agree to the terms</label>' +
+          '<p><button type="button" id="continue" disabled>Continue</button></p>' +
+          '<p><button type="button" id="back">Back</button></p>' +
+          '</form>';
+        const agree = document.getElementById('agree');
+        const cont = document.getElementById('continue');
+        agree.addEventListener('change', function () { cont.disabled = !agree.checked; });
+        cont.addEventListener('click', step3);
+        document.getElementById('back').addEventListener('click', step1);
+      }
+      function step3() {
+        root.innerHTML =
+          '<h2>Review</h2>' +
+          '<p><button id="clear">Clear selection</button></p>' +
+          '<div id="clear-out"></div>';
+        document.getElementById('clear').addEventListener('click', function () {
+          document.getElementById('clear-out').textContent = 'Selection cleared';
+        });
+      }
+      step1();
+    })();
+  </script>
+</body>
+</html>

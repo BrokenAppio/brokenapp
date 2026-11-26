@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>UI map fixture</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; }
+    header { display: flex; gap: 12px; align-items: center; padding: 8px 16px; background: #eee; }
+    #sidenav { display: none; padding: 8px 16px; background: #f6f6f6; }
+    #sidenav.open { display: block; }
+    #sidenav a { display: block; padding: 4px 0; }
+    main { padding: 16px; }
+    .card { display: inline-block; width: 140px; margin: 6px; padding: 8px; border: 1px solid #ccc; }
+    .modal { position: fixed; top: 20%; left: 30%; width: 300px; padding: 16px; background: #fff; border: 2px solid #333; }
+    .toast { position: fixed; bottom: 16px; right: 16px; padding: 8px; background: #dfd; }
+    /* Desktop-only control: hidden in chromiumoxide's default 800x600 viewport. */
+    @media (max-width: 1000px) { #help-btn { display: none; } }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/#/" id="brand">Fixture Shop</a>
+    <button id="menu-toggle" aria-controls="sidenav" aria-expanded="false" aria-label="Open menu">&#9776;</button>
+    <button id="help-btn">Help</button>
+    <button id="signout-btn">Sign out</button>
+  </header>
+  <aside id="sidenav">
+    <a href="/#/inbox">Inbox</a>
+    <a href="/#/team">Team</a>
+    <a href="/reports" data-push="1">Reports</a>
+  </aside>
+  <main id="app"></main>
+  <script>
+    (function () {
+      const app = document.getElementById('app');
+
+      function openModal(title) {
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.setAttribute('role', 'dialog');
+        modal.setAttribute('aria-modal', 'true');
+        modal.innerHTML = '<h2>' + title + '</h2><p>Details for the selected item.</p>' +
+          '<button class="modal-close">Close</button>';
+        modal.querySelector('.modal-close').addEventListener('click', function () { modal.remove(); });
+        document.body.appendChild(modal);
+      }
+
+      function toast(text) {
+        const el = document.createElement('div');
+        el.className = 'toast';
+        el.setAttribute('role', 'status');
+        el.textContent = text;
+        document.body.appendChild(el);
+      }
+
+      function loadInto(target) {
+        fetch('/api/data').then(function (r) { return r.json(); }).then(function (data) {
+          target.innerHTML = '<ul>' + data.items.map(function (i) { return '<li>' + i + '</li>'; }).join('') + '</ul>';
+        });
+      }
+
+      const pages = {
+        '/': function () {
+          app.innerHTML =
+            '<h1>Home</h1>' +
+            '<p><button id="dead-btn">Do nothing</button></p>' +
+            '<p><button id="explode-btn">Explode</button></p>' +
+            '<p><button id="details-btn">Open details</button></p>' +
+            '<p><button id="load-btn">Load data</button></p><div id="data-out"></div>' +
+            '<p><button id="browse-btn">Browse products</button></p>';
+          document.getElementById('explode-btn').addEventListener('click', function () {
+            throw new Error('explode handler failed');
+          });
+          document.getElementById('details-btn').addEventListener('click', function () { openModal('Order details'); });
+          document.getElementById('load-btn').addEventListener('click', function () {
+            loadInto(document.getElementById('data-out'));
+          });
+          document.getElementById('browse-btn').addEventListener('click', function () {
+            location.hash = '#/products';
+          });
+        },
+        '/products': function () {
+          let html = '<h1>Products</h1><p>Free shipping on orders over 5000¤</p><div class="grid">';
+          for (let i = 1; i <= 5; i++) {
+            html += '<div class="card"><h3>Item ' + i + '</h3><button class="add">Add to cart</button><span class="count"></span></div>';
+          }
+          app.innerHTML = html + '</div>';
+          app.querySelectorAll('.add').forEach(function (b) {
+            b.addEventListener('click', function () {
+              b.nextElementSibling.textContent = ' added';
+            });
+          });
+        },
+        '/settings': function () {
+          app.innerHTML =
+            '<h1>Settings</h1>' +
+            '<form id="settings-form"><label>Display name <input name="display_name" required></label>' +
+            '<button type="submit">Save settings</button></form>' +
+            '<p><button id="delete-account">Delete account</button></p>';
+          document.getElementById('settings-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            toast('Settings saved');
+          });
+        },
+        '/inbox': function () {
+          app.innerHTML = '<h1>Inbox</h1><section><p>3 messages</p><button class="primary">Refresh inbox</button><div class="out"></div></section>';
+          app.querySelector('.primary').addEventListener('click', function () { loadInto(app.querySelector('.out')); });
+        },
+        '/team': function () {
+          app.innerHTML = '<h1>Team</h1><section><p>4 members</p><button class="primary">Refresh team</button><div class="out"></div></section>';
+          app.querySelector('.primary').addEventListener('click', function () { loadInto(app.querySelector('.out')); });
+        },
+        '/reports': function () {
+          app.innerHTML = '<h1>Reports</h1><p><a href="/#/settings">Report settings</a></p><button id="refresh-btn">Refresh</button><div id="report-out"></div>';
+          document.getElementById('refresh-btn').addEventListener('click', function () {
+            loadInto(document.getElementById('report-out'));
+          });
+        }
+      };
+
+      function currentRoute() {
+        if (location.pathname === '/reports') return '/reports';
+        const hash = location.hash.replace(/^#/, '');
+        return hash || '/';
+      }
+
+      function render() {
+        const route = currentRoute();
+        (pages[route] || function () { app.innerHTML = '<h1>Not found</h1>'; })();
+        document.title = 'UI map fixture ' + route;
+      }
+
+      document.getElementById('menu-toggle').addEventListener('click', function () {
+        const nav = document.getElementById('sidenav');
+        const open = !nav.classList.contains('open');
+        nav.classList.toggle('open', open);
+        this.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      document.getElementById('help-btn').addEventListener('click', function () { openModal('Help'); });
+      document.getElementById('signout-btn').addEventListener('click', function () {
+        document.body.innerHTML = '<p>Signed out</p>';
+      });
+      document.querySelectorAll('a[data-push]').forEach(function (a) {
+        a.addEventListener('click', function (e) {
+          e.preventDefault();
+          history.pushState({}, '', a.getAttribute('href'));
+          render();
+        });
+      });
+      window.addEventListener('hashchange', render);
+      window.addEventListener('popstate', render);
+      render();
+    })();
+  </script>
+</body>
+</html>

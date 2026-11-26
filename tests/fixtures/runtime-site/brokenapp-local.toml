@@ -1,0 +1,36 @@
+[target]
+url = "http://127.0.0.1:47620/index.html"
+name = "BrokenApp Runtime Fixture"
+headless = true
+
+[scan]
+max_depth = 2
+max_views = 8
+max_duration_minutes = 1
+max_stagnation_minutes = 1
+screenshot_each_view = false
+interaction_timeout_ms = 1000
+settle_timeout_ms = 500
+
+[scan.accessibility]
+enabled = true
+max_findings_per_view = 20
+collapse_threshold = 0
+
+[scan.exploration]
+strategy = "breadth_first"
+interact_with_delete_buttons = false
+fill_forms_with_test_data = true
+submit_forms = false
+max_interaction_depth = 1
+max_interactions_per_depth = [5, 3]
+
+[scan.limits]
+max_interactions_per_view = 8
+
+[output]
+directory = "./target/runtime-site-scan"
+include_screenshots = false
+include_network_log = true
+include_dom_snapshots = false
+bug_report_format = ["json", "markdown"]

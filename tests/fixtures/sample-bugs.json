@@ -1,0 +1,46 @@
+{
+  "$schema": "https://brokenapp.dev/schemas/bug-report-v1.json",
+  "tool_version": "0.0.0-test",
+  "scan_date": "2026-01-01T00:00:00Z",
+  "target_url": "https://example.com",
+  "summary": { "high": 1, "medium": 1 },
+  "items": [
+    {
+      "id": "BUG-0001",
+      "severity": "high",
+      "category": {
+        "kind": "broken_link",
+        "url": "https://example.com/missing",
+        "status": 404
+      },
+      "title": "Broken link",
+      "description": "A link returned HTTP 404.",
+      "location": {
+        "view": "view_0001",
+        "url": "https://example.com/missing"
+      },
+      "reproduction": [],
+      "evidence": {},
+      "discovered_at": "2026-01-01T00:00:00Z"
+    },
+    {
+      "id": "BUG-0002",
+      "severity": "medium",
+      "category": {
+        "kind": "server_error",
+        "endpoint": "/api/users",
+        "status": 500,
+        "response": "Internal Server Error"
+      },
+      "title": "Server error",
+      "description": "A write endpoint returned HTTP 500.",
+      "location": {
+        "view": "view_0002",
+        "url": "https://example.com/login"
+      },
+      "reproduction": ["Open /login", "Submit the form"],
+      "evidence": {},
+      "discovered_at": "2026-01-01T00:00:01Z"
+    }
+  ]
+}

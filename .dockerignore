@@ -1,0 +1,7 @@
+target
+.git
+.github
+staff-scan*
+scan-results
+diff-report
+*.jsonl

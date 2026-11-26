@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "endpoint.users.get",
+      "kind": "endpoint_owner",
+      "target": { "endpoint": "GET /api/users" },
+      "expected_top1": [
+        { "file": "src/routes/users.ts", "line_range": [40, 50], "role": "business logic" }
+      ],
+      "required_recall": [
+        {
+          "group": "handler",
+          "any": [
+            { "file": "src/routes/users.ts", "line_range": [40, 50] }
+          ]
+        }
+      ],
+      "forbidden": [
+        { "file_prefix": "tests/" },
+        { "file_prefix": "docs/" }
+      ]
+    },
+    {
+      "id": "endpoint.users.post",
+      "kind": "endpoint_owner",
+      "target": { "endpoint": "POST /api/users" },
+      "expected_top1": [
+        { "file": "src/routes/users.ts", "line_range": [55, 70], "role": "business logic" }
+      ],
+      "required_recall": [
+        {
+          "group": "handler",
+          "any": [
+            { "file": "src/routes/users.ts", "line_range": [55, 70] }
+          ]
+        }
+      ],
+      "forbidden": [
+        { "file_prefix": "tests/" },
+        { "file_prefix": "docs/" }
+      ]
+    }
+  ]
+}

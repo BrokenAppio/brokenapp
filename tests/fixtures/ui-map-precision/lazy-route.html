@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Receiving</title></head>
+<body>
+  <nav><a href="/">Home</a></nav>
+  <main id="screen"><p class="loading" aria-busy="true">Loading…</p></main>
+  <script type="module">
+    // Like React.lazy: the route's content arrives with a dynamically
+    // imported chunk (slow on a cold dev server).
+    import('/chunks/receiving.js').then(function (mod) {
+      mod.render(document.getElementById('screen'));
+    });
+  </script>
+</body>
+</html>

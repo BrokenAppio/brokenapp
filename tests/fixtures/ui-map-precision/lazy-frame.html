@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Find us</title></head>
+<body>
+  <main>
+    <h1>Find us</h1>
+    <p><button id="directions">Get directions</button></p>
+    <div id="directions-out"></div>
+    <div style="height: 6000px"></div>
+    <iframe loading="lazy" src="/frame.html" title="Map" width="600" height="400"></iframe>
+  </main>
+  <script>
+    document.getElementById('directions').addEventListener('click', function () {
+      document.getElementById('directions-out').textContent = 'Head north on Main Street';
+    });
+  </script>
+</body>
+</html>

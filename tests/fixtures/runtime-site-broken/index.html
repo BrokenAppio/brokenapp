@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BrokenApp Runtime Fixture</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 2rem;
+      }
+
+      nav,
+      main {
+        max-width: 42rem;
+      }
+
+      button,
+      a {
+        margin-block: 0.5rem;
+      }
+
+      .panel {
+        border: 1px solid #999;
+        padding: 1rem;
+      }
+
+      .modal {
+        border: 1px solid #333;
+        padding: 1rem;
+        margin-block: 1rem;
+      }
+
+      [role="tabpanel"][hidden],
+      .modal[hidden] {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <nav aria-label="Primary">
+      <a href="/index.html">Home</a>
+      <a href="/account.html">Account</a>
+    </nav>
+    <main>
+      <h1>Runtime Fixture</h1>
+      <p>This page gives the scanner a small, controlled target.</p>
+      <img src="/missing-product.png" alt="Fixture product placeholder" />
+      <button id="working-button" type="button">Open panel</button>
+      <button id="dead-button" type="button">Dead action</button>
+      <button id="open-modal" type="button" aria-haspopup="dialog" aria-controls="fixture-modal">Open modal</button>
+      <button id="network-error-button" type="button">Trigger server error</button>
+      <button id="cors-button" type="button">Trigger CORS request</button>
+      <section id="panel" class="panel" hidden>
+        <h2>Interactive panel</h2>
+        <a href="/account.html">Review account</a>
+      </section>
+      <section id="fixture-modal" class="modal" role="dialog" aria-modal="true" aria-label="Fixture modal" hidden>
+        <p>Modal content appeared.</p>
+        <button type="button" id="close-modal">Close modal</button>
+      </section>
+      <div role="tablist" aria-label="Fixture tabs">
+        <button id="tab-summary" type="button" role="tab" aria-selected="true" aria-controls="panel-summary">
+          Summary
+        </button>
+        <button id="tab-details" type="button" role="tab" aria-selected="false" aria-controls="panel-details">
+          Details
+        </button>
+      </div>
+      <section id="panel-summary" role="tabpanel" aria-labelledby="tab-summary">
+        Summary tab panel.
+      </section>
+      <section id="panel-details" role="tabpanel" aria-labelledby="tab-details" hidden>
+        Details tab panel.
+      </section>
+    </main>
+    <script>
+      document.getElementById("working-button").addEventListener("click", () => {
+        document.getElementById("panel").hidden = false;
+      });
+      document.getElementById("open-modal").addEventListener("click", () => {
+        document.getElementById("fixture-modal").hidden = false;
+      });
+      document.getElementById("close-modal").addEventListener("click", () => {
+        document.getElementById("fixture-modal").hidden = true;
+      });
+      document.getElementById("tab-summary").addEventListener("click", () => {
+        document.getElementById("tab-summary").setAttribute("aria-selected", "true");
+        document.getElementById("tab-details").setAttribute("aria-selected", "false");
+        document.getElementById("panel-summary").hidden = false;
+        document.getElementById("panel-details").hidden = true;
+      });
+      document.getElementById("tab-details").addEventListener("click", () => {
+        document.getElementById("tab-summary").setAttribute("aria-selected", "false");
+        document.getElementById("tab-details").setAttribute("aria-selected", "true");
+        document.getElementById("panel-summary").hidden = true;
+        document.getElementById("panel-details").hidden = false;
+      });
+      document.getElementById("network-error-button").addEventListener("click", () => {
+        fetch("/api/server-error").catch(() => {});
+      });
+      document.getElementById("cors-button").addEventListener("click", () => {
+        fetch("http://127.0.0.1:47621/cors-missing").catch(() => {});
+      });
+    </script>
+  </body>
+</html>

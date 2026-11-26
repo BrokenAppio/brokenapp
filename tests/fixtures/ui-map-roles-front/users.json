@@ -1,0 +1,8 @@
+{
+  "comment": "Throwaway test users that exist only inside the fixture server of front_cli_test.rs. Not real credentials.",
+  "users": [
+    { "role": "user", "email": "user@roles-fixture.test", "password": "fixture-user-pass-1" },
+    { "role": "admin", "email": "admin@roles-fixture.test", "password": "fixture-admin-pass-1" }
+  ],
+  "wrong_password": "fixture-wrong-pass-9"
+}

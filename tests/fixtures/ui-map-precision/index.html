@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Precision lab</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; }
+    header { display: flex; gap: 12px; padding: 8px 16px; background: #eee; }
+    main { padding: 16px; }
+    .notice { padding: 4px 8px; background: #ffd; }
+    .filter.active { font-weight: bold; }
+    #scroller { height: 240px; overflow: auto; border: 1px solid #ccc; }
+    #suite { margin-top: 1400px; height: 200px; background: #def; }
+    .mobile-bar { position: fixed; bottom: 0; left: 0; right: 0; padding: 6px; background: #333; color: #fff; }
+    .mobile-bar.hidden-bar { transform: translateY(100%); }
+    table { border-collapse: collapse; }
+    tr.row { cursor: pointer; }
+    td { padding: 4px 8px; border: 1px solid #ddd; }
+    .provider strong, .provider small { display: block; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">Precision lab</a>
+    <a href="/lazy-frame">Find us</a>
+    <a href="/lazy-route">Receiving</a>
+    <a href="/wizard">Setup</a>
+    <a href="/towns">Towns</a>
+    <a href="/contact">Research</a>
+  </header>
+  <main>
+    <h1>Precision lab</h1>
+
+    <section>
+      <h2>Shelves</h2>
+      <details class="shelves">
+        <summary>Shelf labels</summary>
+        <p><button id="print-cage">Print location label CAGE-1</button></p>
+      </details>
+      <div id="shelf-out"></div>
+    </section>
+
+    <section>
+      <h2>Filters</h2>
+      <div role="group" aria-label="Status filter">
+        <button class="filter active" aria-pressed="true" data-f="all">All 3</button>
+        <button class="filter" aria-pressed="false" data-f="open">Open 1</button>
+      </div>
+      <ul id="items"></ul>
+    </section>
+
+    <section>
+      <h2>Legal</h2>
+      <p><button data-print>Print</button></p>
+      <p><input type="file" id="import-file" hidden><button id="import">Import CSV</button></p>
+    </section>
+
+    <section>
+      <h2>Test suite</h2>
+      <p><button id="jump">Start the test</button></p>
+      <div id="scroller"><p>Instructions</p><div id="suite">Suite</div></div>
+    </section>
+
+    <section>
+      <h2>Research desk</h2>
+      <p><button id="spa-nav">Go to research desk</button></p>
+    </section>
+
+    <section>
+      <h2>Team</h2>
+      <ul id="team"><li>Carol</li><li>Alice</li><li>Bob</li></ul>
+      <p><button id="sort">Sort by name</button></p>
+    </section>
+
+    <section>
+      <h2>Misc</h2>
+      <p class="live">Live for <span id="live">0</span>s</p>
+      <p><button id="dead">Do nothing at all</button></p>
+      <p><button id="visit">Visit</button> <span id="visit-panel" hidden aria-expanded="false">Visit panel</span></p>
+      <p><button class="provider"><strong>WhatsApp</strong><small>Chat export</small></button></p>
+      <div id="provider-out"></div>
+    </section>
+
+    <section>
+      <h2>Responsive images</h2>
+      <img id="responsive-img" width="24" height="24" alt="Responsive fixture">
+      <p><button id="responsive-noop">Wait for responsive image</button></p>
+      <img id="image-src" width="24" height="24" alt="Source fixture">
+      <p><button id="change-image-src">Change image source</button></p>
+      <img id="image-srcset" width="24" height="24" alt="Source set fixture">
+      <p><button id="change-image-srcset">Change image source set</button></p>
+      <picture><source id="picture-source" type="image/svg+xml"><img id="picture-img" width="24" height="24" alt="Picture fixture"></picture>
+      <p><button id="change-picture-source">Change picture source</button></p>
+    </section>
+
+    <section>
+      <h2>Devices</h2>
+      <table>
+        <tr class="row" onclick="location.hash = '#device-1'">
+          <td><span>Available</span></td>
+          <td><span>SHELF-A1</span></td>
+          <td><button class="row-print">Print label</button></td>
+        </tr>
+      </table>
+      <div id="row-out"></div>
+    </section>
+
+    <div style="height: 1600px"></div>
+    <section>
+      <h2>Video</h2>
+      <p><button id="play">Play video</button></p>
+    </section>
+  </main>
+  <div class="mobile-bar">Call us</div>
+  <script>
+    (function () {
+      function notice(target, text) {
+        const p = document.createElement('p');
+        p.className = 'notice';
+        p.textContent = text;
+        target.appendChild(p);
+      }
+      document.getElementById('print-cage').addEventListener('click', function () {
+        notice(document.getElementById('shelf-out'), 'Label CAGE-1 sent to the printer');
+      });
+
+      let filter = 'all';
+      const items = { all: ['alpha', 'beta', 'gamma'], open: ['beta'] };
+      function renderItems() {
+        document.getElementById('items').innerHTML = items[filter].map(function (i) { return '<li>' + i + '</li>'; }).join('');
+        document.querySelectorAll('.filter').forEach(function (b) {
+          const on = b.dataset.f === filter;
+          b.classList.toggle('active', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+      }
+      document.querySelectorAll('.filter').forEach(function (b) {
+        b.addEventListener('click', function () {
+          if (filter === b.dataset.f) return;
+          filter = b.dataset.f;
+          renderItems();
+        });
+      });
+      renderItems();
+
+      document.querySelectorAll('[data-print]').forEach(function (b) {
+        b.addEventListener('click', function () { window.print(); });
+      });
+
+      document.getElementById('jump').addEventListener('click', function () {
+        const scroller = document.getElementById('scroller');
+        scroller.scrollTop = document.getElementById('suite').offsetTop - scroller.offsetTop;
+      });
+
+      // A focusout-style handler that re-writes state that is already set.
+      document.getElementById('visit').addEventListener('click', function () {
+        const panel = document.getElementById('visit-panel');
+        panel.setAttribute('aria-expanded', 'false');
+        panel.hidden = true;
+      });
+
+      document.querySelector('.provider').addEventListener('click', function () {
+        notice(document.getElementById('provider-out'), 'Add information from WhatsApp');
+      });
+
+      document.querySelector('.row-print').addEventListener('click', function (e) {
+        e.stopPropagation();
+        notice(document.getElementById('row-out'), 'Label queued');
+      });
+
+      // A fixed bar that toggles state on scroll (unrelated to any click).
+      const bar = document.querySelector('.mobile-bar');
+      window.addEventListener('scroll', function () {
+        const away = window.scrollY > 200;
+        bar.classList.toggle('hidden-bar', away);
+        if (away) bar.setAttribute('inert', ''); else bar.removeAttribute('inert');
+      }, { passive: true });
+
+      // A client-side route change: the click's own request, then the new
+      // route's bootstrap request (not the click's).
+      document.getElementById('spa-nav').addEventListener('click', function () {
+        fetch('/api/route-click').catch(function () {});
+        history.pushState({}, '', '/contact');
+        setTimeout(function () { fetch('/api/route-bootstrap').catch(function () {}); }, 50);
+      });
+
+      // Opens the native file chooser and nothing else.
+      document.getElementById('import').addEventListener('click', function () {
+        document.getElementById('import-file').click();
+      });
+
+      // Sorting moves the existing nodes: same texts, new order.
+      document.getElementById('sort').addEventListener('click', function () {
+        const list = document.getElementById('team');
+        Array.from(list.children)
+          .sort(function (a, b) { return a.textContent.localeCompare(b.textContent); })
+          .forEach(function (li) { list.appendChild(li); });
+      });
+
+      // A timer that ticks on its own: never the effect of a click.
+      let live = 0;
+      setInterval(function () {
+        live += 1;
+        document.getElementById('live').textContent = String(live);
+      }, 1000);
+
+      // A no-op "Play video": the handler does nothing.
+      document.getElementById('play').addEventListener('click', function () {});
+
+      const imageUrl = (color) => 'data:image/svg+xml,' + encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect width="24" height="24" fill="' + color + '"/></svg>'
+      );
+      const red = imageUrl('red'), blue = imageUrl('blue');
+      ['responsive-img', 'image-src', 'image-srcset', 'picture-img'].forEach(function (id) {
+        document.getElementById(id).src = red;
+      });
+      document.getElementById('image-srcset').srcset = red + ' 1x';
+      document.getElementById('picture-source').srcset = red + ' 1x';
+
+      // Deterministic browser-loading shim: currentSrc selects AVIF shortly
+      // after the click, while the image declarations and UI stay unchanged.
+      // This models delayed responsive selection, not an app source change.
+      let selectedResource = 'https://fixture.invalid/fallback.jpg';
+      Object.defineProperty(document.getElementById('responsive-img'), 'currentSrc', {
+        get: function () { return selectedResource; }
+      });
+      document.getElementById('responsive-noop').addEventListener('click', function () {
+        setTimeout(function () { selectedResource = 'https://fixture.invalid/selected.avif'; }, 25);
+      });
+      document.getElementById('change-image-src').addEventListener('click', function () {
+        document.getElementById('image-src').src = blue;
+      });
+      document.getElementById('change-image-srcset').addEventListener('click', function () {
+        document.getElementById('image-srcset').srcset = blue + ' 1x';
+      });
+      document.getElementById('change-picture-source').addEventListener('click', function () {
+        document.getElementById('picture-source').srcset = blue + ' 1x';
+      });
+    })();
+  </script>
+</body>
+</html>

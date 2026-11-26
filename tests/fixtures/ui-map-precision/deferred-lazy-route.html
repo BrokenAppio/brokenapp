@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Deferred workspace</title></head>
+<body>
+  <nav><a href="/">Home</a></nav>
+  <main id="screen"><p role="status">Opening workspace…</p></main>
+  <script type="module">
+    // The shell can be quiet before the lazy import even starts. There is
+    // deliberately no spinner class, aria-busy flag, or in-flight request.
+    setTimeout(function () {
+      import('/chunks/receiving.js').then(function (mod) {
+        const root = document.getElementById('screen');
+        mod.render(root);
+        root.insertAdjacentHTML('beforeend',
+          '<button id="queue-filter">All queue items</button>' +
+          '<input id="queue-search" aria-label="Search queue">' +
+          '<a id="queue-open" href="/contact">Open queue item</a>');
+      });
+    }, 1200);
+  </script>
+</body>
+</html>

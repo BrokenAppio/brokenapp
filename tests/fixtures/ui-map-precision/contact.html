@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Research</title></head>
+<body>
+  <main>
+    <h1>Start research</h1>
+    <form id="research">
+      <label>Email <input type="email" name="email" required></label>
+      <label>Your thesis <textarea name="thesis" required></textarea></label>
+      <p><button type="submit">Research idea</button></p>
+    </form>
+    <div id="research-out"></div>
+
+    <h2>Pick dates</h2>
+    <form id="dates" onsubmit="event.preventDefault(); document.getElementById('dates-out').textContent = 'Showing ' + this.start.value;">
+      <label>Start <input type="date" name="start" min="2030-01-01"></label>
+      <p><button type="submit">Check these dates</button></p>
+    </form>
+    <div id="dates-out"></div>
+
+    <h2>Upload</h2>
+    <form id="upload" onsubmit="event.preventDefault(); document.getElementById('upload-out').textContent = 'Uploaded';">
+      <label>File <input type="file" name="file" required></label>
+      <p><button type="submit">Upload file</button></p>
+    </form>
+    <div id="upload-out"></div>
+  </main>
+  <script>
+    document.getElementById('research').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const thesis = this.thesis.value.trim();
+      const out = document.getElementById('research-out');
+      if (thesis.length < 12) { out.textContent = 'Give your thesis a little more detail.'; return; }
+      fetch('/api/research', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ thesis: thesis, email: this.email.value }) })
+        .then(function () { out.textContent = 'Queued'; })
+        .catch(function () { out.textContent = 'Could not queue the research job.'; });
+    });
+  </script>
+</body>
+</html>

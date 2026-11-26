@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Write Guard Fixture</title>
+  </head>
+  <body>
+    <!--
+      Every control on this page and on more.html sends a state-changing
+      request when exercised. A default scan (write_guard.mode = "block") must
+      record each attempt in network.jsonl and stop it before it reaches the
+      fixture server. __API_ORIGIN__ is replaced by the test with a second
+      local origin. Labels and ids are deliberately neutral so the crawler's
+      label-based danger filters do not skip them. The controls are split over
+      two pages so each page fits the crawler's per-page interaction budget.
+    -->
+    <nav><a href="/more.html">More actions</a></nav>
+    <main>
+      <h1>Shop</h1>
+      <p id="status">Ready</p>
+      <button id="refresh" type="button">Refresh list</button>
+      <button id="buy" type="button">Buy now</button>
+      <button id="rename" type="button">Rename item</button>
+      <button id="clear-item" type="button">Clear item</button>
+      <button id="cart" type="button">Add to cart</button>
+      <button id="refund" type="button">Refund order</button>
+      <label>Notes <input id="notes" type="text" placeholder="Notes" /></label>
+    </main>
+    <script>
+      const status = (text) => {
+        document.getElementById("status").textContent = text;
+      };
+      const json = { "content-type": "application/json" };
+      const done = (label) => () => status(label + " done");
+      const failed = (label) => () => status(label + " failed");
+
+      document.getElementById("refresh").addEventListener("click", () => {
+        fetch("/api/items").then(done("refresh"), failed("refresh"));
+      });
+      // fetch(Request) with its own headers: the action probe must keep them.
+      document.getElementById("buy").addEventListener("click", () => {
+        const req = new Request("/api/orders", {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: "Bearer fixture-token" },
+          body: JSON.stringify({ sku: "A1", qty: 1 }),
+        });
+        fetch(req).then(done("buy"), failed("buy"));
+      });
+      document.getElementById("rename").addEventListener("click", () => {
+        fetch("/api/items/42", { method: "PATCH", headers: json, body: JSON.stringify({ name: "renamed" }) })
+          .then(done("rename"), failed("rename"));
+      });
+      document.getElementById("clear-item").addEventListener("click", () => {
+        fetch("/api/items/42", { method: "DELETE" }).then(done("clear"), failed("clear"));
+      });
+      // Cross-origin, Supabase-style write (JSON => CORS preflight first).
+      document.getElementById("cart").addEventListener("click", () => {
+        fetch("__API_ORIGIN__/rest/v1/cart", {
+          method: "POST",
+          headers: { ...json, prefer: "return=representation" },
+          body: JSON.stringify({ sku: "A1" }),
+        }).then(done("cart"), failed("cart"));
+      });
+      document.getElementById("refund").addEventListener("click", () => {
+        fetch("/graphql", {
+          method: "POST",
+          headers: json,
+          body: JSON.stringify({ query: "mutation RefundOrder { refund(id: 1) { ok } }" }),
+        }).then(done("refund"), failed("refund"));
+      });
+      // Typing-triggered autosave.
+      let autosaveTimer = null;
+      document.getElementById("notes").addEventListener("input", (ev) => {
+        clearTimeout(autosaveTimer);
+        const value = ev.target.value;
+        autosaveTimer = setTimeout(() => {
+          fetch("/api/autosave", { method: "POST", headers: json, body: JSON.stringify({ notes: value }) })
+            .then(done("autosave"), failed("autosave"));
+        }, 150);
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>__ROUTE__</title>
+</head>
+<body>
+  <!-- One page per route (`__ROUTE__` is substituted by the test server).
+       Every button fires requests and console output tagged with its route
+       and button, same-origin (action-id stamped) and cross-origin (not
+       stamped), right away and after a delay, while other tabs do the same
+       on other routes. -->
+  <nav>
+    <a href="/">home</a>
+    <a href="/alpha">alpha</a>
+    <a href="/beta">beta</a>
+    <a href="/gamma">gamma</a>
+    <a href="/delta">delta</a>
+    <a href="/epsilon">epsilon</a>
+    <a href="/zeta">zeta</a>
+  </nav>
+  <main>
+    <h1>Route __ROUTE__</h1>
+    <p id="out">idle</p>
+    <button id="save" type="button">Save __ROUTE__</button>
+    <button id="load" type="button">Load __ROUTE__</button>
+    <button id="boom" type="button">Boom __ROUTE__</button>
+    <button id="ping" type="button">Ping __ROUTE__</button>
+  </main>
+  <script>
+    const ROUTE = "__ROUTE__";
+    const out = document.getElementById("out");
+    const tag = (button) => "ATTR route=" + ROUTE + " button=" + button;
+    const cross = (path) => "http://localhost:" + location.port + path;
+    const later = (fn) => setTimeout(fn, 250);
+
+    // On-load traffic belongs to the page load of this route only. It also
+    // reports whether the tab is visible (a background tab would be hidden).
+    fetch("/api/boot/" + ROUTE + "?visibility=" + document.visibilityState).catch(() => {});
+
+    document.getElementById("save").addEventListener("click", () => {
+      // A write: stopped by the write guard, still attributed.
+      fetch("/api/attr/" + ROUTE + "/save", { method: "POST", body: JSON.stringify({ r: ROUTE }) }).catch(() => {});
+      console.error(tag("save"));
+      out.textContent = "saving " + Date.now();
+      later(() => fetch(cross("/api/xattr/" + ROUTE + "/save?late=1"), { mode: "no-cors" }).catch(() => {}));
+    });
+
+    document.getElementById("load").addEventListener("click", async () => {
+      fetch(cross("/api/xattr/" + ROUTE + "/load"), { mode: "no-cors" }).catch(() => {});
+      const res = await fetch("/api/attr/" + ROUTE + "/load");
+      out.textContent = "loaded " + (await res.text());
+    });
+
+    document.getElementById("boom").addEventListener("click", () => {
+      fetch(cross("/api/xattr/" + ROUTE + "/boom"), { mode: "no-cors" }).catch(() => {});
+      throw new Error(tag("boom"));
+    });
+
+    document.getElementById("ping").addEventListener("click", () => {
+      fetch("/api/attr/" + ROUTE + "/ping")
+        .then(() => { out.textContent = "pinged " + Date.now(); })
+        .catch(() => {});
+      console.error(tag("ping"));
+      alert(tag("ping"));
+      later(() => fetch("/api/attr/" + ROUTE + "/ping?late=1").catch(() => {}));
+    });
+  </script>
+</body>
+</html>

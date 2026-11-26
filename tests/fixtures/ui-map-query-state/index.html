@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Account query states</title>
+<body>
+<main>
+<nav aria-label="Account sections">
+  <button data-tab="profile">Business profile</button>
+  <button data-tab="payout">Payout and banking</button>
+  <button data-tab="payments">Payment history</button>
+</nav>
+<section id="account-content"></section>
+</main>
+<script>
+const fields = { profile: 'Company name', payout: 'Payout recipient', payments: 'Payment reference' };
+function render() {
+  const hash = location.hash.startsWith('#/');
+  const query = hash ? location.hash.split('?')[1] : location.search;
+  const tab = new URLSearchParams(query).get('tab') || 'profile';
+  const label = fields[tab] || fields.profile;
+  // All tabs deliberately have the same DOM skeleton and Edit selector.
+  // Distinct view/control identity must come from the observed UI query state.
+  document.querySelector('#account-content').innerHTML = '<h1>Account section</h1><button id="edit">Edit</button><div id="fields"></div>';
+  document.querySelector('#edit').onclick = () => {
+    document.querySelector('#fields').innerHTML = '<label>' + label + ' <input aria-label="' + label + '"></label>';
+  };
+  document.querySelectorAll('[data-tab]').forEach(button => {
+    button.onclick = () => {
+      const target = (hash ? '/#/account' : '/account') + '?tab=' + button.dataset.tab;
+      history.pushState({}, '', target);
+      render();
+    };
+  });
+}
+window.addEventListener('popstate', render);
+window.addEventListener('hashchange', render);
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Rust (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --locked
+
+      - name: Unit tests (lib)
+        run: cargo test --locked --lib
+
+      - name: Unit tests (bin)
+        run: cargo test --locked --bin brokenapp
+
+  chrome-integration:
+    name: Chrome Integration (ubuntu-latest)
+    runs-on: ubuntu-latest
+    env:
+      BROKENAPP_NO_SANDBOX: "1"
+      BROKENAPP_CHROME_ARGS: "--disable-dev-shm-usage"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Ensure Chromium is available
+        run: |
+          if command -v google-chrome >/dev/null 2>&1; then
+            echo "BROKENAPP_CHROME_EXECUTABLE=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          elif command -v chromium >/dev/null 2>&1; then
+            echo "BROKENAPP_CHROME_EXECUTABLE=$(command -v chromium)" >> "$GITHUB_ENV"
+          elif command -v chromium-browser >/dev/null 2>&1; then
+            echo "BROKENAPP_CHROME_EXECUTABLE=$(command -v chromium-browser)" >> "$GITHUB_ENV"
+          else
+            sudo apt-get update -y
+            sudo apt-get install -y chromium-browser || sudo apt-get install -y chromium
+            echo "BROKENAPP_CHROME_EXECUTABLE=$(command -v chromium-browser || command -v chromium)" >> "$GITHUB_ENV"
+          fi
+
+      - name: Integration tests (Chrome write guard, WS/toast, compliance)
+        run: |
+          cargo test --locked --test integration_tests -- --test-threads=2 write_guard_test ws_toast_modal_test compliance_guardrails_test
+
+  docs:
+    name: Docs & Links
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify local Markdown links and agent skill budget
+        run: |
+          python3 - <<'PY'
+          import pathlib, re, sys
+
+          root = pathlib.Path(".").resolve()
+          files = [
+              pathlib.Path("README.md"),
+              pathlib.Path("ARCHITECTURE.md"),
+              pathlib.Path("AGENTS.md"),
+              pathlib.Path("CLAUDE.md"),
+              *sorted(pathlib.Path("docs").glob("*.md")),
+              *sorted(pathlib.Path("agent").rglob("*.md")),
+          ]
+
+          link_re = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+          errors = []
+
+          for path in files:
+              if not path.is_file():
+                  errors.append(f"missing expected doc: {path}")
+                  continue
+              text = path.read_text(encoding="utf-8")
+              in_fence = False
+              for lineno, line in enumerate(text.splitlines(), 1):
+                  if line.strip().startswith("```"):
+                      in_fence = not in_fence
+                      continue
+                  if in_fence:
+                      continue
+                  for raw in link_re.findall(line):
+                      target = raw.split("#", 1)[0].strip()
+                      if not target or target.startswith(("http://", "https://", "mailto:")):
+                          continue
+                      resolved = (path.parent / target).resolve()
+                      if not resolved.exists():
+                          errors.append(f"{path}:{lineno}: broken link -> {raw}")
+
+          skill = pathlib.Path("agent/claude-code/SKILL.md")
+          skill_lines = skill.read_text(encoding="utf-8").splitlines()
+          if not skill_lines or skill_lines[0].strip() != "---":
+              errors.append("agent/claude-code/SKILL.md: missing YAML frontmatter")
+          if len(skill_lines) > 75:
+              errors.append(f"agent/claude-code/SKILL.md: too long ({len(skill_lines)} lines > 75)")
+
+          if errors:
+              for e in errors:
+                  print(f"ERROR: {e}", file=sys.stderr)
+              sys.exit(1)
+
+          print(f"Checked {len(files)} markdown files; SKILL.md is {len(skill_lines)} lines.")
+          PY

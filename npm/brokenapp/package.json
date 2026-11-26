@@ -1,0 +1,35 @@
+{
+  "name": "brokenapp",
+  "version": "0.0.0-placeholder",
+  "description": "A map of what your web app actually does — per login role, traced to source, with a write guard on by default.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BrokenAppio/brokenapp"
+  },
+  "bin": {
+    "brokenapp": "bin.js"
+  },
+  "files": [
+    "bin.js"
+  ],
+  "optionalDependencies": {
+    "@brokenapp/brokenapp-darwin-arm64": "0.0.0-placeholder",
+    "@brokenapp/brokenapp-darwin-x64": "0.0.0-placeholder",
+    "@brokenapp/brokenapp-linux-x64": "0.0.0-placeholder",
+    "@brokenapp/brokenapp-linux-arm64": "0.0.0-placeholder",
+    "@brokenapp/brokenapp-win32-x64": "0.0.0-placeholder"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "ui-map",
+    "behavioral-diff",
+    "rbac",
+    "write-guard",
+    "ai-coding-agents",
+    "regression-testing",
+    "parity"
+  ]
+}

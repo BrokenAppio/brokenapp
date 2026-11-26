@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>__TITLE__ · Roles fixture</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; }
+    header nav a { margin-right: 12px; }
+    .panel { display: none; border: 1px solid #ccc; padding: 8px; margin: 8px 0; }
+    .panel.open { display: block; }
+    [role=dialog] { position: fixed; top: 80px; left: 80px; background: #fff; border: 1px solid #333; padding: 16px; }
+  </style>
+</head>
+<body data-role="__ROLE__">
+  <header>
+    <nav>
+      __NAV__
+      <a href="/logout">Log out</a>
+    </nav>
+  </header>
+  <main>
+    <h1>__TITLE__</h1>
+    <div id="storage-slot"></div>
+    <p id="storage-state"></p>
+    <p id="me">loading</p>
+    __MAIN__
+  </main>
+  <script>
+    (function () {
+      var role = document.body.dataset.role;
+      var local = null, tab = null;
+      try { local = localStorage.getItem('fixture_ui_token'); } catch (e) {}
+      try { tab = sessionStorage.getItem('fixture_tab_token'); } catch (e) {}
+      var ok = local === 'ui-' + role && tab === 'tab-' + role;
+      var button = document.createElement('button');
+      button.textContent = ok ? 'Storage ok' : 'Storage missing';
+      button.addEventListener('click', function () {
+        document.getElementById('storage-state').textContent = button.textContent + ' (checked)';
+      });
+      document.getElementById('storage-slot').appendChild(button);
+      fetch('/api/me').then(function (r) { return r.json(); }).then(function (me) {
+        document.getElementById('me').textContent = 'signed in as ' + (me.role || 'nobody');
+      }).catch(function () {
+        document.getElementById('me').textContent = 'not signed in';
+      });
+    })();
+    function togglePanel(id) {
+      document.getElementById(id).classList.toggle('open');
+    }
+    function load(url, id) {
+      fetch(url).then(function (r) { return r.text(); }).then(function (t) {
+        document.getElementById(id).textContent = t;
+      });
+    }
+    function save(url, id) {
+      fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
+        .then(function (r) { document.getElementById(id).textContent = 'saved ' + r.status; })
+        .catch(function () { document.getElementById(id).textContent = 'save failed'; });
+    }
+    function openDialog(id) { document.getElementById(id).hidden = false; }
+    function closeDialog(id) { document.getElementById(id).hidden = true; }
+  </script>
+</body>
+</html>

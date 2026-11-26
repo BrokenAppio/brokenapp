@@ -1,0 +1,339 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  BINARY_NAME: brokenapp
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --locked
+
+      - name: Unit tests (lib & bin)
+        run: |
+          cargo test --locked --lib
+          cargo test --locked --bin brokenapp
+
+  build:
+    name: Build (${{ matrix.target }})
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            archive_ext: tar.gz
+            npm_pkg: brokenapp-linux-x64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            archive_ext: tar.gz
+            npm_pkg: brokenapp-linux-arm64
+          - os: macos-14
+            target: x86_64-apple-darwin
+            archive_ext: tar.gz
+            npm_pkg: brokenapp-darwin-x64
+          - os: macos-14
+            target: aarch64-apple-darwin
+            archive_ext: tar.gz
+            npm_pkg: brokenapp-darwin-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive_ext: zip
+            npm_pkg: brokenapp-win32-x64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          if ! pkg-config --exists openssl 2>/dev/null; then
+            sudo apt-get update -y
+            sudo apt-get install -y --no-install-recommends pkg-config libssl-dev
+          fi
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }} --locked
+
+      - name: Package (tar.gz)
+        if: matrix.archive_ext == 'tar.gz'
+        id: package_tgz
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME}"
+          target="${{ matrix.target }}"
+          staging="dist/${version}-${target}"
+          mkdir -p "${staging}"
+          cp "target/${target}/release/${BINARY_NAME}" "${staging}/"
+          asset="${BINARY_NAME}-${version}-${target}.tar.gz"
+          tar -czf "${asset}" -C dist "${version}-${target}"
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "${asset}" > "${asset}.sha256"
+          else
+            shasum -a 256 "${asset}" > "${asset}.sha256"
+          fi
+          echo "asset=${asset}" >> "${GITHUB_OUTPUT}"
+          echo "checksum=${asset}.sha256" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload Release Asset (tar.gz)
+        if: matrix.archive_ext == 'tar.gz'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.package_tgz.outputs.asset }}
+            ${{ steps.package_tgz.outputs.checksum }}
+
+      - name: Package (zip)
+        if: matrix.archive_ext == 'zip'
+        id: package_zip
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $version = $env:GITHUB_REF_NAME
+          $target = "${{ matrix.target }}"
+          $staging = "dist/$version-$target"
+          New-Item -ItemType Directory -Force -Path $staging | Out-Null
+          Copy-Item "target/$target/release/${{ env.BINARY_NAME }}.exe" "$staging/" -Force
+          $asset = "${{ env.BINARY_NAME }}-$version-$target.zip"
+          if (Test-Path $asset) { Remove-Item $asset -Force }
+          Compress-Archive -Path "$staging/*" -DestinationPath $asset -Force
+          $hash = (Get-FileHash -Path $asset -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $asset" | Out-File -FilePath "$asset.sha256" -Encoding ascii
+          "asset=$asset" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "checksum=$asset.sha256" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Upload Release Asset (zip)
+        if: matrix.archive_ext == 'zip'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.package_zip.outputs.asset }}
+            ${{ steps.package_zip.outputs.checksum }}
+
+      - name: Prepare npm binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          pkg="${{ matrix.npm_pkg }}"
+          mkdir -p "npm-staging/${pkg}"
+          if [[ "${{ matrix.archive_ext }}" == "zip" ]]; then
+            cp "target/${{ matrix.target }}/release/${BINARY_NAME}.exe" "npm-staging/${pkg}/${BINARY_NAME}.exe"
+          else
+            cp "target/${{ matrix.target }}/release/${BINARY_NAME}" "npm-staging/${pkg}/${BINARY_NAME}"
+            chmod +x "npm-staging/${pkg}/${BINARY_NAME}"
+          fi
+          cp "npm/${pkg}/package.json" "npm-staging/${pkg}/package.json"
+
+      - name: Upload npm artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.npm_pkg }}
+          path: npm-staging/${{ matrix.npm_pkg }}/
+
+  publish-npm:
+    name: Publish npm packages
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Download all npm artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: npm-artifacts/
+
+      - name: Set version in package.json files
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          for pkg in npm-artifacts/brokenapp-*/package.json; do
+            sed -i "s/\"0.0.0-placeholder\"/\"${version}\"/" "$pkg"
+          done
+          sed -i "s/\"0.0.0-placeholder\"/\"${version}\"/g" npm/brokenapp/package.json
+
+      - name: Publish platform packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "NPM_TOKEN secret is not configured; skipping npm publish."
+            exit 0
+          fi
+          version="${GITHUB_REF_NAME#v}"
+          for pkg_dir in npm-artifacts/brokenapp-*/; do
+            echo "Publishing $(basename "$pkg_dir")..."
+            cd "$pkg_dir"
+            name=$(node -p "require('./package.json').name")
+            if npm view "${name}@${version}" version >/dev/null 2>&1; then
+              echo "Already published: ${name}@${version} (skipping)"
+            else
+              npm publish --access public
+            fi
+            cd -
+          done
+
+      - name: Publish root package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "NPM_TOKEN secret is not configured; skipping npm publish."
+            exit 0
+          fi
+          version="${GITHUB_REF_NAME#v}"
+          cd npm/brokenapp
+          name=$(node -p "require('./package.json').name")
+          if npm view "${name}@${version}" version >/dev/null 2>&1; then
+            echo "Already published: ${name}@${version} (skipping)"
+            exit 0
+          fi
+          npm publish --access public
+
+  update-homebrew:
+    name: Update Homebrew formula
+    needs: build
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.ref_name, '-') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Update formula
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          tag="${GITHUB_REF_NAME}"
+          repo="${GITHUB_REPOSITORY}"
+
+          darwin_arm64_url="https://github.com/${repo}/releases/download/${tag}/brokenapp-${tag}-aarch64-apple-darwin.tar.gz"
+          darwin_x64_url="https://github.com/${repo}/releases/download/${tag}/brokenapp-${tag}-x86_64-apple-darwin.tar.gz"
+          linux_arm64_url="https://github.com/${repo}/releases/download/${tag}/brokenapp-${tag}-aarch64-unknown-linux-gnu.tar.gz"
+          linux_x64_url="https://github.com/${repo}/releases/download/${tag}/brokenapp-${tag}-x86_64-unknown-linux-gnu.tar.gz"
+
+          curl -fsSL "$darwin_arm64_url" -o darwin_arm64.tar.gz
+          curl -fsSL "$darwin_x64_url" -o darwin_x64.tar.gz
+          curl -fsSL "$linux_arm64_url" -o linux_arm64.tar.gz
+          curl -fsSL "$linux_x64_url" -o linux_x64.tar.gz
+
+          sha_darwin_arm64=$(sha256sum darwin_arm64.tar.gz | cut -d' ' -f1)
+          sha_darwin_x64=$(sha256sum darwin_x64.tar.gz | cut -d' ' -f1)
+          sha_linux_arm64=$(sha256sum linux_arm64.tar.gz | cut -d' ' -f1)
+          sha_linux_x64=$(sha256sum linux_x64.tar.gz | cut -d' ' -f1)
+
+          cat > homebrew/brokenapp.rb <<FORMULA
+          class Brokenapp < Formula
+            desc "Map of what your web app actually does, per login role, traced to source"
+            homepage "https://github.com/${repo}"
+            version "${version}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "${darwin_arm64_url}"
+                sha256 "${sha_darwin_arm64}"
+              else
+                url "${darwin_x64_url}"
+                sha256 "${sha_darwin_x64}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "${linux_arm64_url}"
+                sha256 "${sha_linux_arm64}"
+              else
+                url "${linux_x64_url}"
+                sha256 "${sha_linux_x64}"
+              end
+            end
+
+            def install
+              bin_path = Dir["brokenapp", "*/brokenapp"].find { |p| File.file?(p) }
+              raise "brokenapp binary not found in archive" unless bin_path
+              bin.install bin_path => "brokenapp"
+            end
+
+            test do
+              assert_match "brokenapp", shell_output("#{bin}/brokenapp --version")
+            end
+          end
+          FORMULA
+
+          sed -i 's/^          //' homebrew/brokenapp.rb
+
+          echo "Formula updated for version ${version}"
+          cat homebrew/brokenapp.rb
+
+      - name: Upload Homebrew formula (release asset)
+        uses: softprops/action-gh-release@v2
+        with:
+          files: homebrew/brokenapp.rb
+
+      - name: Commit formula to default branch (best-effort)
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          default_branch="${{ github.event.repository.default_branch }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet -- homebrew/brokenapp.rb; then
+            echo "No formula changes to commit."
+            exit 0
+          fi
+
+          git add homebrew/brokenapp.rb
+          git commit -m "Update Homebrew formula for ${GITHUB_REF_NAME}"
+          git push origin "HEAD:${default_branch}"

@@ -1,0 +1,144 @@
+{
+  "$schema": "https://brokenapp.dev/schemas/app-spec-v1.json",
+  "meta": {
+    "tool_version": "0.0.0-test",
+    "scan_date": "2026-01-01T00:00:00Z",
+    "scan_duration_seconds": 12,
+    "target_url": "https://example.com",
+    "coverage": {
+      "views_discovered": 3,
+      "views_explored": 3,
+      "elements_discovered": 4,
+      "elements_interacted": 2,
+      "api_endpoints_discovered": 5,
+      "coverage_percentage": 50.0
+    }
+  },
+  "application": {
+    "base_url": "https://example.com",
+    "detected_framework": "TestApp"
+  },
+  "views": [
+    {
+      "id": "view_0001",
+      "route": "/",
+      "title": "Home",
+      "component_type": "page",
+      "description": "Homepage",
+      "components": [],
+      "elements": [
+        {
+          "selector": "#login",
+          "label": "Login",
+          "element_type": { "kind": "button", "form_submit": false },
+          "found_on": "view_0001",
+          "bounding_box": { "x": 10.0, "y": 20.0, "width": 100.0, "height": 30.0 }
+        },
+        {
+          "selector": "#search",
+          "label": "Search",
+          "element_type": {
+            "kind": "text_input",
+            "input_type": "text",
+            "name": "q",
+            "required": false
+          },
+          "found_on": "view_0001"
+        }
+      ],
+      "on_load_api_calls": []
+    },
+    {
+      "id": "view_0002",
+      "route": "/login",
+      "title": "Login",
+      "component_type": "form",
+      "description": "Login page",
+      "components": [],
+      "elements": [
+        {
+          "selector": "button[type='submit']",
+          "label": "Sign in",
+          "element_type": { "kind": "button", "form_submit": true },
+          "found_on": "view_0002"
+        }
+      ],
+      "on_load_api_calls": []
+    },
+    {
+      "id": "view_0003",
+      "route": "/dashboard",
+      "title": "Dashboard",
+      "component_type": "page",
+      "description": "User dashboard",
+      "components": [],
+      "elements": [
+        {
+          "selector": "#marketingOptIn",
+          "label": "Email me updates",
+          "element_type": {
+            "kind": "checkbox",
+            "name": "opt_in",
+            "checked": false
+          },
+          "found_on": "view_0003"
+        }
+      ],
+      "on_load_api_calls": []
+    }
+  ],
+  "api_surface": {
+    "base_url": "https://example.com",
+    "summary": {
+      "total_endpoints_captured": 5,
+      "application_api_endpoints": 5,
+      "filtered_infrastructure": 0
+    },
+    "endpoints": [
+      {
+        "key": { "method": "GET", "path_template": "/api/health" },
+        "url_pattern": "https://example.com/api/health"
+      },
+      {
+        "key": { "method": "GET", "path_template": "/api/users" },
+        "url_pattern": "https://example.com/api/users"
+      },
+      {
+        "key": { "method": "POST", "path_template": "/api/users" },
+        "url_pattern": "https://example.com/api/users"
+      },
+      {
+        "key": { "method": "GET", "path_template": "/api/users/{id}" },
+        "url_pattern": "https://example.com/api/users/{id}"
+      },
+      {
+        "key": { "method": "PUT", "path_template": "/api/users/{id}" },
+        "url_pattern": "https://example.com/api/users/{id}"
+      }
+    ]
+  },
+  "data_models": {},
+  "state_machine": {
+    "entry_point": "view_0001",
+    "transitions": [
+      {
+        "from_view": "view_0001",
+        "to_view": "view_0002",
+        "trigger": { "view": "view_0001", "selector": "#login" },
+        "transition_type": "navigation",
+        "api_calls": [],
+        "preconditions": []
+      },
+      {
+        "from_view": "view_0002",
+        "to_view": "view_0003",
+        "trigger": { "view": "view_0002", "selector": "button[type='submit']" },
+        "transition_type": "navigation",
+        "api_calls": [
+          { "method": "POST", "path_template": "/api/users" }
+        ],
+        "preconditions": []
+      }
+    ]
+  }
+}

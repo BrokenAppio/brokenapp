@@ -1,0 +1,158 @@
+# Copy to .github/workflows/brokenapp-pr-gate.yml in your web app repository.
+#
+# Prerequisites:
+#   1. Commit .brokenapp/config.toml (created by `brokenapp init`).
+#   2. Seed a baseline map on main (or upload/restore .brokenapp/history/ between runs).
+#   3. If your app defines [[roles]] with `env:` credentials, add those secrets in
+#      GitHub Settings -> Secrets and variables -> Actions.
+#
+# What this workflow does on every PR:
+#   - Maps your running app with the write guard enabled (no writes reach your DB).
+#   - Diffs every role against the previous map with `brokenapp changes --role all`.
+#   - Posts/updates a Markdown behavioral diff comment on the PR.
+#   - Fails the check if any control became dead/broken or a role gained unauthorized access.
+
+name: BrokenApp PR Gate
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  behavioral-diff:
+    name: Behavioral & Role-Access Diff
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+
+      - name: Setup Chrome
+        id: chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Configure Chrome for Linux CI
+        run: |
+          echo "BROKENAPP_CHROME=${{ steps.chrome.outputs.chrome-path }}" >> "$GITHUB_ENV"
+          echo "BROKENAPP_NO_SANDBOX=1" >> "$GITHUB_ENV"
+          echo "BROKENAPP_CHROME_ARGS=--disable-dev-shm-usage" >> "$GITHUB_ENV"
+
+      - name: Install BrokenApp
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/BrokenAppio/brokenapp/main/install.sh | bash
+          brokenapp doctor
+
+      # Restore the baseline map history from main so `brokenapp changes` can diff against it.
+      # Tip: Upload `.brokenapp/history/` from a push-to-main workflow, or compare directly
+      # with `brokenapp parity baseline-map/ .brokenapp/map/`.
+      - name: Restore baseline history (if cached)
+        uses: actions/cache@v4
+        with:
+          path: .brokenapp/history
+          key: brokenapp-history-${{ github.base_ref }}-${{ github.sha }}
+          restore-keys: |
+            brokenapp-history-${{ github.base_ref }}-
+
+      # --- Start your app -----------------------------------------------------
+      # Option A: Start your app yourself (e.g., docker compose, built server)
+      #           and pass `--no-start` to `brokenapp map`.
+      # Option B: Omit the start step and drop `--no-start` to let `brokenapp map`
+      #           launch `project.dev_cmd` from `.brokenapp/config.toml` automatically.
+      - name: Install & start app
+        run: |
+          npm ci
+          npm run build
+          npm run start &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/ >/dev/null 2>&1; then
+              echo "App is ready."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "App failed to become reachable on http://127.0.0.1:3000" >&2
+          exit 1
+
+      - name: Crawl app (write-guarded, all configured roles)
+        env:
+          # Map any `env:` references declared in `.brokenapp/config.toml` [[roles]]:
+          ADMIN_EMAIL: ${{ secrets.BROKENAPP_ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.BROKENAPP_ADMIN_PASSWORD }}
+          MEMBER_EMAIL: ${{ secrets.BROKENAPP_MEMBER_EMAIL }}
+          MEMBER_PASSWORD: ${{ secrets.BROKENAPP_MEMBER_PASSWORD }}
+        run: |
+          brokenapp map --no-start
+
+      - name: Diff behavior & role access (CI gate)
+        id: gate
+        run: |
+          set +e
+          brokenapp changes \
+            --role all \
+            --fail-on dead,broken,access-gained \
+            --format markdown > brokenapp-changes.md
+          code=$?
+          set -e
+          echo "exit_code=${code}" >> "$GITHUB_OUTPUT"
+          cat brokenapp-changes.md
+
+      - name: Upload map & diff artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brokenapp-pr-${{ github.event.pull_request.number }}
+          path: |
+            brokenapp-changes.md
+            .brokenapp/map/UI-MAP.html
+            .brokenapp/map/ROLE-ACCESS.md
+            .brokenapp/map/DEAD-UI.md
+          if-no-files-found: warn
+
+      - name: Comment behavioral diff on PR
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- brokenapp-pr-gate -->';
+            const exitCode = '${{ steps.gate.outputs.exit_code }}';
+            const status = exitCode === '0' ? 'PASSED' : 'FAILED';
+            const diff = fs.existsSync('brokenapp-changes.md')
+              ? fs.readFileSync('brokenapp-changes.md', 'utf8').trim()
+              : '_No diff output produced._';
+
+            const body = [
+              marker,
+              `## BrokenApp Behavioral Diff — **${status}**`,
+              '',
+              'Policy: `--fail-on dead,broken,access-gained` across all roles (`--role all`).',
+              '',
+              diff,
+              '',
+              '_Download `UI-MAP.html` and `ROLE-ACCESS.md` from the workflow artifacts for interactive inspection._',
+            ].join('\n');
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - name: Enforce gate exit code
+        if: steps.gate.outputs.exit_code != '0'
+        run: |
+          echo "BrokenApp PR gate failed (exit code ${{ steps.gate.outputs.exit_code }})." >&2
+          exit 1

@@ -1,0 +1,20 @@
+# Rust build artifacts
+/target
+/target-linux
+
+# macOS
+.DS_Store
+
+# Local BrokenApp runtime state (never commit scans, history, sessions, or credentials)
+/.brokenapp/
+
+# Generated scan artifacts
+*.jsonl
+*.sarif
+
+# Keep committed test fixtures even though scan artifacts are ignored
+!tests/fixtures/**/*.jsonl
+
+# Local worktrees & crash logs
+.worktrees/
+crash.log

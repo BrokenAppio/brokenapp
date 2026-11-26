@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Dumpster rental</title></head>
+<body>
+  <main>
+    <h1 id="town">Dumpster rental</h1>
+    <section>
+      <h2>Pick a date</h2>
+      <div role="grid" id="calendar"></div>
+      <p><button id="next-month">Next month</button></p>
+      <div id="calendar-out"></div>
+    </section>
+    <section>
+      <h2>Add-ons</h2>
+      <p>Roll-off 10 yard: <span id="qty">0</span>
+        <button class="step" data-d="1" aria-label="More: Roll-off 10 yard">+</button>
+        <button class="step" data-d="-1" aria-label="Fewer: Roll-off 10 yard">-</button></p>
+    </section>
+    <section>
+      <h2>Questions</h2>
+      <p><button id="faq">How long can I keep it?</button></p>
+      <div id="faq-out"></div>
+    </section>
+  </main>
+  <script>
+    (function () {
+      const slug = location.pathname.split('/').pop();
+      document.getElementById('town').textContent = 'Dumpster rental in ' + slug;
+      const cal = document.getElementById('calendar');
+      for (let d = 1; d <= 14; d++) {
+        const b = document.createElement('button');
+        b.setAttribute('aria-label', 'Nov ' + d + ', 2026, open');
+        b.textContent = String(d);
+        b.addEventListener('click', function () {
+          document.getElementById('calendar-out').textContent = 'Drop-off on Nov ' + d;
+        });
+        cal.appendChild(b);
+      }
+      document.getElementById('next-month').addEventListener('click', function () {
+        document.getElementById('calendar-out').textContent = 'December 2026';
+      });
+      let qty = 0;
+      document.querySelectorAll('.step').forEach(function (b) {
+        b.addEventListener('click', function () {
+          qty = Math.max(0, qty + Number(b.dataset.d));
+          document.getElementById('qty').textContent = String(qty);
+        });
+      });
+      document.getElementById('faq').addEventListener('click', function () {
+        document.getElementById('faq-out').textContent = 'Up to 7 days.';
+      });
+    })();
+  </script>
+</body>
+</html>

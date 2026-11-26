@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Sign in · Roles fixture</title></head>
+<body>
+  <main>
+    <h1>Sign in</h1>
+    <p id="message">__MESSAGE__</p>
+    <form method="post" action="/login">
+      <label>Email <input id="email" name="email" type="email" required></label>
+      <label>Password <input id="password" name="password" type="password" required></label>
+      <button id="submit" type="submit">Sign in</button>
+    </form>
+    <a href="/">Home</a>
+  </main>
+  <script>
+    // `/login?auto=<role>`: sign in from the page (the session-capture test).
+    (function () {
+      var auto = new URLSearchParams(location.search).get('auto');
+      var accounts = __AUTO_ACCOUNTS__;
+      if (!auto || !accounts[auto]) return;
+      var body = 'email=' + encodeURIComponent(accounts[auto][0]) +
+        '&password=' + encodeURIComponent(accounts[auto][1]);
+      setTimeout(function () {
+        fetch('/login', {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: body,
+          credentials: 'include'
+        }).then(function () {
+          localStorage.setItem('fixture_ui_token', 'ui-' + auto);
+          sessionStorage.setItem('fixture_tab_token', 'tab-' + auto);
+          location.href = '/dashboard';
+        });
+      }, 300);
+    })();
+  </script>
+</body>
+</html>

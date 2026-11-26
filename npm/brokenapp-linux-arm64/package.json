@@ -1,0 +1,9 @@
+{
+  "name": "@brokenapp/brokenapp-linux-arm64",
+  "version": "0.0.0-placeholder",
+  "description": "BrokenApp binary for Linux ARM64",
+  "license": "MIT",
+  "os": ["linux"],
+  "cpu": ["arm64"],
+  "files": ["brokenapp"]
+}
